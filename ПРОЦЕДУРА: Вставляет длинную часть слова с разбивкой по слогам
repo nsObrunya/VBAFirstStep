@@ -1,0 +1,80 @@
+' =============================================================================
+' ПРОЦЕДУРА: Вставляет длинную часть слова с разбивкой по слогам
+' =============================================================================
+' Вызывается, когда часть слова (после разбивки по дефису) всё ещё длиннее maxChars.
+' Разбивает её по слогам (правило: перенос перед гласной, перед ней — согласная).
+' rowIndex и currentLine передаются ByRef — изменения вернутся в основной Sub.
+Private Sub AddLongPartWithHyphenation(ByRef part As String, ByRef currentLine As String, _
+                                        ByRef rowIndex As Long, columnIndex As Long, maxChars As Long)
+    Dim remaining As String
+    remaining = part   ' остаток слова, который ещё не разложен
+    
+    ' Пока остаток длиннее maxChars — ищем место для переноса.
+    Do While Len(remaining) > maxChars
+        Dim pos As Long
+        pos = FindHyphenationPos(remaining, maxChars)
+        
+        ' Если перенос невозможен (pos = 0) — пишем остаток как есть.
+        If pos = 0 Then
+            If currentLine = "" Then
+                currentLine = remaining
+            Else
+                Dim testLine As String
+                testLine = currentLine & " " & remaining
+                If Len(testLine) <= maxChars Then
+                    currentLine = testLine
+                Else
+                    ThisWorkbook.Sheets("ОЖР").Cells(rowIndex, columnIndex).Value = currentLine
+                    rowIndex = rowIndex + 1
+                    currentLine = remaining
+                End If
+            End If
+            Exit Sub
+        End If
+        
+        ' Первая часть: символы до pos (включая) + дефис.
+        Dim firstPart As String
+        firstPart = Left(remaining, pos) & "-"
+        
+        ' Вставляем первую часть в текущую строку.
+        If currentLine = "" Then
+            currentLine = firstPart
+        Else
+            Dim testLine2 As String
+            testLine2 = currentLine & " " & firstPart
+            If Len(testLine2) <= maxChars Then
+                currentLine = testLine2
+            Else
+                ThisWorkbook.Sheets("ОЖР").Cells(rowIndex, columnIndex).Value = currentLine
+                rowIndex = rowIndex + 1
+                currentLine = firstPart
+            End If
+        End If
+        
+        ' Записываем текущую строку и начинаем новую с остатком.
+        ThisWorkbook.Sheets("ОЖР").Cells(rowIndex, columnIndex).Value = currentLine
+        rowIndex = rowIndex + 1
+        currentLine = ""
+        
+        ' Остаток — всё, что после pos.
+        remaining = Mid(remaining, pos + 1)
+    Loop
+    
+    ' Остаток (? maxChars) — вставляем в текущую строку.
+    If remaining <> "" Then
+        If currentLine = "" Then
+            currentLine = remaining
+        Else
+            Dim testLine3 As String
+            testLine3 = currentLine & " " & remaining
+            If Len(testLine3) <= maxChars Then
+                currentLine = testLine3
+            Else
+                ThisWorkbook.Sheets("ОЖР").Cells(rowIndex, columnIndex).Value = currentLine
+                rowIndex = rowIndex + 1
+                currentLine = remaining
+            End If
+        End If
+    End If
+End Sub
+
