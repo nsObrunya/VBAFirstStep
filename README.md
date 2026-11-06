@@ -1,3 +1,4 @@
+mermaid```` 
 flowchart TD
     Start([Начало]) --> Config[Настройки:<br/>Источник: Исходка!G6<br/>Приёмник: ОЖР!J25<br/>maxChars = 12]
     Config --> GetText[Прочитать текст, Trim]
