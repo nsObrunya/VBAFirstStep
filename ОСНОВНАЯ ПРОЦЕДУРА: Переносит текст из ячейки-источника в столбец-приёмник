@@ -1,0 +1,138 @@
+' =============================================================================
+' ОСНОВНАЯ ПРОЦЕДУРА: Переносит текст из ячейки-источника в столбец-приёмник
+' =============================================================================
+Sub ПеренестиТекстВКолонкуB()
+    ' --- Объявление переменных ---
+    Dim srcCell As Range, doneCell As Range       ' ячейки: источник и приёмник
+    Dim fullText As String                        ' полный текст из источника
+    Dim words() As String                         ' массив слов после разбивки по пробелам
+    Dim currentLine As String                     ' текущая собираемая строка
+    Dim i As Long                                 ' счётчик слов
+    Dim rowIndex As Long, columnIndex As Long     ' текущая строка и столбец для записи
+    Dim maxChars As Long                          ' максимум символов в строке
+    Dim parts() As String                         ' массив частей слова после разбивки по дефису
+    Dim j As Long                                 ' счётчик частей
+    Dim part As String                            ' текущая часть слова
+    
+    ' === НАСТРОЙКИ ===
+    ' Источник: лист "Исходка", ячейка G6. Обратите внимание: Set без .Value —
+    ' мы сохраняем ссылку на ячейку, а значение берём позже через .Value.
+    Set srcCell = ThisWorkbook.Sheets("Исходка").Range("G6")
+    
+    ' Максимум символов в одной строке (с пробелами).
+    maxChars = 12
+    
+    ' Приёмник: лист "ОЖР", ячейка J25. От неё начнём заполнять вниз.
+    Set doneCell = ThisWorkbook.Sheets("ОЖР").Range("J25")
+    
+    ' Запоминаем строку и столбец приёмника — чтобы писать в правильное место,
+    ' а не жёстко в столбец B.
+    rowIndex = doneCell.row          ' например, 25
+    columnIndex = doneCell.Column    ' например, 10 (столбец J)
+    ' =================
+    
+    ' Берём текст из источника и обрезаем пробелы по краям.
+    fullText = Trim(srcCell.Value)
+    
+    ' Если текст пустой — выходим с сообщением.
+    If fullText = "" Then
+        MsgBox "Ячейка пуста.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Разбиваем текст на слова по пробелам. Split создаёт массив.
+    words = Split(fullText, " ")
+    
+    ' Начинаем с пустой строки.
+    currentLine = ""
+    
+    ' --- Проходим по каждому слову ---
+    For i = LBound(words) To UBound(words)
+        Dim word As String
+        word = words(i)
+        
+        ' Пропускаем пустые слова (если было несколько пробелов подряд).
+        If word = "" Then GoTo NextWord
+        
+        ' Если слово длиннее maxChars — его нужно разбить.
+        If Len(word) > maxChars Then
+            ' Заменяем длинное тире на дефис для единообразия разбивки.
+            word = Replace(word, "—", "-")
+            
+            ' Разбиваем слово по дефису на части.
+            parts = Split(word, "-")
+            
+            ' Проходим по каждой части.
+            For j = LBound(parts) To UBound(parts)
+                part = Trim(parts(j))
+                ' Пустые части пропускаем (например, если было "--").
+                If part = "" Then GoTo NextPart
+                
+                ' Определяем, последняя ли это часть.
+                Dim isLast As Boolean
+                isLast = (j = UBound(parts))
+                
+                ' Если часть не последняя — добавляем дефис обратно,
+                ' чтобы слово читалось как единое целое.
+                Dim partWithDash As String
+                If isLast Then
+                    partWithDash = part
+                Else
+                    partWithDash = part & "-"
+                End If
+                
+                ' Если часть всё ещё длиннее maxChars — разбиваем по слогам.
+                If Len(partWithDash) > maxChars Then
+                    ' Передаём columnIndex, чтобы процедура писала в правильный столбец.
+                    Call AddLongPartWithHyphenation(partWithDash, currentLine, rowIndex, columnIndex, maxChars)
+                Else
+                    ' Обычная вставка части: пробуем добавить к текущей строке.
+                    If currentLine = "" Then
+                        currentLine = partWithDash
+                    Else
+                        Dim testLine As String
+                        testLine = currentLine & " " & partWithDash
+                        If Len(testLine) <= maxChars Then
+                            ' Влезает — добавляем в текущую строку.
+                            currentLine = testLine
+                        Else
+                            ' Не влезает — записываем текущую строку и начинаем новую.
+                            doneCell.Worksheet.Cells(rowIndex, columnIndex).Value = currentLine
+                            rowIndex = rowIndex + 1
+                            currentLine = partWithDash
+                        End If
+                    End If
+                End If
+                
+NextPart:
+            Next j
+        Else
+            ' --- Обычное слово (короче maxChars) ---
+            If currentLine = "" Then
+                currentLine = word
+            Else
+                Dim testLine2 As String
+                testLine2 = currentLine & " " & word
+                If Len(testLine2) <= maxChars Then
+                    ' Влезает — добавляем.
+                    currentLine = testLine2
+                Else
+                    ' Не влезает — записываем строку и начинаем новую.
+                    doneCell.Worksheet.Cells(rowIndex, columnIndex).Value = currentLine
+                    rowIndex = rowIndex + 1
+                    currentLine = word
+                End If
+            End If
+        End If
+        
+NextWord:
+    Next i
+    
+    ' После цикла записываем последнюю строку, если она не пустая.
+    If currentLine <> "" Then
+        doneCell.Worksheet.Cells(rowIndex, columnIndex).Value = currentLine
+    End If
+    
+    ' Сообщение о завершении.
+    MsgBox "Текст перенесён. Последняя строка: " & rowIndex, vbInformation
+End Sub
